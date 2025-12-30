@@ -1,3 +1,5 @@
+@import 'tailwindcss';
+
 :root {
   /* Clinical Premium Palette */
   --color-primary: #0f4c75; /* Deep Navy Medical */

@@ -1,0 +1,11 @@
+    Checking app v0.1.0 (/Users/home/megs/nursed-admin/src-tauri)
+warning: unused import: `Manager`
+ --> src/commands.rs:1:31
+  |
+1 | use tauri::{AppHandle, State, Manager};
+  |                               ^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `app` (lib) generated 1 warning (run `cargo fix --lib -p app` to apply 1 suggestion)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.82s

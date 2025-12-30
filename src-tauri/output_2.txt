@@ -1,0 +1,232 @@
+    Checking tauri-runtime-wry v2.9.3
+    Checking lance v0.14.1
+    Checking sqlx v0.8.6
+   Compiling app v0.1.0 (/Users/home/megs/nursed-admin/src-tauri)
+    Checking tauri v2.9.5
+    Checking tauri-plugin-log v2.7.1
+    Checking tauri-plugin-shell v2.3.3
+    Checking lancedb v0.7.2
+warning: unused import: `Manager`
+ --> src/commands.rs:1:31
+  |
+1 | use tauri::{AppHandle, State, Manager};
+  |                               ^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `sqlx::types::Json`
+ --> src/commands.rs:5:5
+  |
+5 | use sqlx::types::Json;
+  |     ^^^^^^^^^^^^^^^^^
+
+error[E0277]: the trait bound `Vec<Grade>: sqlx::Decode<'_, _>` is not satisfied
+   --> src/commands.rs:65:44
+    |
+ 65 |     let mut students = sqlx::query_as::<_, Student>("SELECT * FROM students")
+    |                                            ^^^^^^^ the trait `sqlx::Decode<'_, _>` is not implemented for `Vec<Grade>`
+    |
+    = help: the following other types implement trait `sqlx::Decode<'r, DB>`:
+              `Vec<u8>` implements `sqlx::Decode<'_, Sqlite>`
+              `Vec<u8>` implements `sqlx::Decode<'_, sqlx::Any>`
+    = note: required for `std::option::Option<Vec<Grade>>` to implement `sqlx::Decode<'_, _>`
+note: required for `Student` to implement `for<'r> FromRow<'r, _>`
+   --> src/models.rs:5:48
+    |
+  5 | #[derive(Debug, Serialize, Deserialize, Clone, FromRow)]
+    |                                                ^^^^^^^ unsatisfied trait bound introduced in this `derive` macro
+  6 | #[serde(rename_all = "camelCase")]
+  7 | pub struct Student {
+    |            ^^^^^^^
+note: required by a bound in `sqlx::query_as`
+   --> /Users/home/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlx-core-0.8.6/src/query_as.rs:345:8
+    |
+342 | pub fn query_as<'q, DB, O>(sql: &'q str) -> QueryAs<'q, DB, O, <DB as Database>::Arguments<'q>>
+    |        -------- required by a bound in this function
+...
+345 |     O: for<'r> FromRow<'r, DB::Row>,
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `query_as`
+    = note: this error originates in the derive macro `FromRow` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `Vec<Grade>: Type<_>` is not satisfied
+   --> src/commands.rs:65:44
+    |
+ 65 |     let mut students = sqlx::query_as::<_, Student>("SELECT * FROM students")
+    |                                            ^^^^^^^ the trait `Type<_>` is not implemented for `Vec<Grade>`
+    |
+    = help: the following other types implement trait `Type<DB>`:
+              `Vec<u8>` implements `Type<Sqlite>`
+              `Vec<u8>` implements `Type<sqlx::Any>`
+    = note: required for `std::option::Option<Vec<Grade>>` to implement `Type<_>`
+note: required for `Student` to implement `for<'r> FromRow<'r, _>`
+   --> src/models.rs:5:48
+    |
+  5 | #[derive(Debug, Serialize, Deserialize, Clone, FromRow)]
+    |                                                ^^^^^^^ unsatisfied trait bound introduced in this `derive` macro
+  6 | #[serde(rename_all = "camelCase")]
+  7 | pub struct Student {
+    |            ^^^^^^^
+note: required by a bound in `sqlx::query_as`
+   --> /Users/home/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlx-core-0.8.6/src/query_as.rs:345:8
+    |
+342 | pub fn query_as<'q, DB, O>(sql: &'q str) -> QueryAs<'q, DB, O, <DB as Database>::Arguments<'q>>
+    |        -------- required by a bound in this function
+...
+345 |     O: for<'r> FromRow<'r, DB::Row>,
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `query_as`
+    = note: this error originates in the derive macro `FromRow` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0599]: the method `fetch_all` exists for struct `QueryAs<'_, _, Student, _>`, but its trait bounds were not satisfied
+   --> src/commands.rs:66:10
+    |
+ 65 |       let mut students = sqlx::query_as::<_, Student>("SELECT * FROM students")
+    |  ________________________-
+ 66 | |         .fetch_all(pool)
+    | |         -^^^^^^^^^ method cannot be called on `QueryAs<'_, _, Student, _>` due to unsatisfied trait bounds
+    | |_________|
+    |
+    |
+   ::: src/models.rs:7:1
+    |
+  7 |   pub struct Student {
+    |   ------------------ doesn't satisfy `Student: FromRow<'r, _>`
+    |
+   ::: /Users/home/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/src/rust/library/alloc/src/vec/mod.rs:434:1
+    |
+434 |   pub struct Vec<T, #[unstable(feature = "allocator_api", issue = "32838")] A: Allocator = Global> {
+    |   ------------------------------------------------------------------------------------------------ doesn't satisfy `Vec<Grade>: Type<_>` or `Vec<Grade>: sqlx::Decode<'_, _>`
+    |
+    = note: the following trait bounds were not satisfied:
+            `Vec<Grade>: sqlx::Decode<'_, _>`
+            which is required by `Student: FromRow<'r, _>`
+            `Vec<Grade>: Type<_>`
+            which is required by `Student: FromRow<'r, _>`
+
+error[E0282]: type annotations needed
+  --> src/commands.rs:65:24
+   |
+65 |       let mut students = sqlx::query_as::<_, Student>("SELECT * FROM students")
+   |  ________________________^
+66 | |         .fetch_all(pool)
+67 | |         .await
+   | |______________^ cannot infer type
+
+error[E0282]: type annotations needed
+  --> src/commands.rs:68:19
+   |
+68 |         .map_err(|e| e.to_string())?;
+   |                   ^  - type must be known at this point
+   |
+help: consider giving this closure parameter an explicit type
+   |
+68 |         .map_err(|e: /* Type */| e.to_string())?;
+   |                    ++++++++++++
+
+error[E0277]: the trait bound `Vec<Grade>: sqlx::Decode<'_, _>` is not satisfied
+   --> src/commands.rs:97:43
+    |
+ 97 |     let mut student = sqlx::query_as::<_, Student>("SELECT * FROM students WHERE id = ?")
+    |                                           ^^^^^^^ the trait `sqlx::Decode<'_, _>` is not implemented for `Vec<Grade>`
+    |
+    = help: the following other types implement trait `sqlx::Decode<'r, DB>`:
+              `Vec<u8>` implements `sqlx::Decode<'_, Sqlite>`
+              `Vec<u8>` implements `sqlx::Decode<'_, sqlx::Any>`
+    = note: required for `std::option::Option<Vec<Grade>>` to implement `sqlx::Decode<'_, _>`
+note: required for `Student` to implement `for<'r> FromRow<'r, _>`
+   --> src/models.rs:5:48
+    |
+  5 | #[derive(Debug, Serialize, Deserialize, Clone, FromRow)]
+    |                                                ^^^^^^^ unsatisfied trait bound introduced in this `derive` macro
+  6 | #[serde(rename_all = "camelCase")]
+  7 | pub struct Student {
+    |            ^^^^^^^
+note: required by a bound in `sqlx::query_as`
+   --> /Users/home/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlx-core-0.8.6/src/query_as.rs:345:8
+    |
+342 | pub fn query_as<'q, DB, O>(sql: &'q str) -> QueryAs<'q, DB, O, <DB as Database>::Arguments<'q>>
+    |        -------- required by a bound in this function
+...
+345 |     O: for<'r> FromRow<'r, DB::Row>,
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `query_as`
+    = note: this error originates in the derive macro `FromRow` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: the trait bound `Vec<Grade>: Type<_>` is not satisfied
+   --> src/commands.rs:97:43
+    |
+ 97 |     let mut student = sqlx::query_as::<_, Student>("SELECT * FROM students WHERE id = ?")
+    |                                           ^^^^^^^ the trait `Type<_>` is not implemented for `Vec<Grade>`
+    |
+    = help: the following other types implement trait `Type<DB>`:
+              `Vec<u8>` implements `Type<Sqlite>`
+              `Vec<u8>` implements `Type<sqlx::Any>`
+    = note: required for `std::option::Option<Vec<Grade>>` to implement `Type<_>`
+note: required for `Student` to implement `for<'r> FromRow<'r, _>`
+   --> src/models.rs:5:48
+    |
+  5 | #[derive(Debug, Serialize, Deserialize, Clone, FromRow)]
+    |                                                ^^^^^^^ unsatisfied trait bound introduced in this `derive` macro
+  6 | #[serde(rename_all = "camelCase")]
+  7 | pub struct Student {
+    |            ^^^^^^^
+note: required by a bound in `sqlx::query_as`
+   --> /Users/home/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/sqlx-core-0.8.6/src/query_as.rs:345:8
+    |
+342 | pub fn query_as<'q, DB, O>(sql: &'q str) -> QueryAs<'q, DB, O, <DB as Database>::Arguments<'q>>
+    |        -------- required by a bound in this function
+...
+345 |     O: for<'r> FromRow<'r, DB::Row>,
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ required by this bound in `query_as`
+    = note: this error originates in the derive macro `FromRow` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0599]: the method `fetch_optional` exists for struct `QueryAs<'_, _, Student, _>`, but its trait bounds were not satisfied
+   --> src/commands.rs:99:10
+    |
+ 97 |       let mut student = sqlx::query_as::<_, Student>("SELECT * FROM students WHERE id = ?")
+    |  _______________________-
+ 98 | |         .bind(&id)
+ 99 | |         .fetch_optional(pool)
+    | |         -^^^^^^^^^^^^^^ method cannot be called on `QueryAs<'_, _, Student, _>` due to unsatisfied trait bounds
+    | |_________|
+    |
+    |
+   ::: src/models.rs:7:1
+    |
+  7 |   pub struct Student {
+    |   ------------------ doesn't satisfy `Student: FromRow<'r, _>`
+    |
+   ::: /Users/home/.rustup/toolchains/stable-aarch64-apple-darwin/lib/rustlib/src/rust/library/alloc/src/vec/mod.rs:434:1
+    |
+434 |   pub struct Vec<T, #[unstable(feature = "allocator_api", issue = "32838")] A: Allocator = Global> {
+    |   ------------------------------------------------------------------------------------------------ doesn't satisfy `Vec<Grade>: Type<_>` or `Vec<Grade>: sqlx::Decode<'_, _>`
+    |
+    = note: the following trait bounds were not satisfied:
+            `Vec<Grade>: sqlx::Decode<'_, _>`
+            which is required by `Student: FromRow<'r, _>`
+            `Vec<Grade>: Type<_>`
+            which is required by `Student: FromRow<'r, _>`
+
+error[E0282]: type annotations needed
+   --> src/commands.rs:97:23
+    |
+ 97 |       let mut student = sqlx::query_as::<_, Student>("SELECT * FROM students WHERE id = ?")
+    |  _______________________^
+ 98 | |         .bind(&id)
+ 99 | |         .fetch_optional(pool)
+100 | |         .await
+    | |______________^ cannot infer type
+
+error[E0282]: type annotations needed
+   --> src/commands.rs:101:19
+    |
+101 |         .map_err(|e| e.to_string())?;
+    |                   ^  - type must be known at this point
+    |
+help: consider giving this closure parameter an explicit type
+    |
+101 |         .map_err(|e: /* Type */| e.to_string())?;
+    |                    ++++++++++++
+
+Some errors have detailed explanations: E0277, E0282, E0599.
+For more information about an error, try `rustc --explain E0277`.
+warning: `app` (lib) generated 2 warnings
+error: could not compile `app` (lib) due to 10 previous errors; 2 warnings emitted
