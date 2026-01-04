@@ -52,18 +52,19 @@ export function ConfirmDialog({
 
       {/* Dialog */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-lg shadow-xl max-w-md w-full animate-in fade-in zoom-in duration-200">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-gray-100 overflow-hidden backdrop-blur-sm">
           {/* Header */}
-          <div className="flex items-start gap-4 p-6 border-b border-gray-200">
-            <div className={`p-3 rounded-full ${styles.icon}`}>
+          <div className="flex items-start gap-4 p-6 border-b border-gray-200 bg-linear-to-r from-gray-50 to-white">
+            <div className={`p-3 rounded-xl shadow-md ${styles.icon}`}>
               <AlertTriangle className="w-6 h-6" />
             </div>
             <div className="flex-1">
-              <h3 className="text-lg font-bold text-gray-900">{title}</h3>
+              <h3 className="text-xl font-bold text-gray-900">{title}</h3>
             </div>
             <button
               onClick={onCancel}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg p-1 transition-all"
+              aria-label="Close"
             >
               <X className="w-5 h-5" />
             </button>
@@ -78,7 +79,7 @@ export function ConfirmDialog({
           <div className="flex gap-3 p-6 border-t border-gray-200 justify-end">
             <button
               onClick={onCancel}
-              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
+              className="px-5 py-2.5 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 hover:border-gray-400 font-semibold transition-all whitespace-nowrap"
             >
               {cancelText}
             </button>
@@ -87,7 +88,7 @@ export function ConfirmDialog({
                 onConfirm();
                 onCancel();
               }}
-              className={`px-4 py-2 rounded-lg font-medium transition-colors ${styles.button}`}
+              className={`px-5 py-2.5 rounded-xl font-semibold transition-all whitespace-nowrap shadow-md hover:shadow-lg ${styles.button}`}
             >
               {confirmText}
             </button>

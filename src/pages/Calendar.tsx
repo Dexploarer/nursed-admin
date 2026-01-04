@@ -69,7 +69,7 @@ export default function CalendarPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 -m-8 p-8">
+    <div className="min-h-screen bg-linear-to-br from-slate-50 via-blue-50 to-indigo-50 -m-8 p-8">
       <style>{css}</style>
 
         {/* Header */}
@@ -87,7 +87,7 @@ export default function CalendarPage() {
                 <Bell className="w-5 h-5" />
                 Notifications
               </button>
-              <button className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-xl hover:shadow-xl transition-all font-semibold shadow-lg">
+              <button className="flex items-center gap-2 px-6 py-3 bg-linear-to-r from-indigo-600 to-blue-600 text-white rounded-xl hover:shadow-xl transition-all font-semibold shadow-lg">
                 <Plus className="w-5 h-5" />
                 Schedule Event
               </button>
@@ -173,7 +173,7 @@ export default function CalendarPage() {
                   onClick={() => setFilter('all')}
                   className={`w-full text-left p-4 rounded-xl text-sm font-semibold transition-all ${
                     filter === 'all'
-                      ? 'bg-gradient-to-r from-gray-100 to-gray-50 text-gray-900 shadow-sm'
+                      ? 'bg-linear-to-r from-gray-100 to-gray-50 text-gray-900 shadow-sm'
                       : 'text-gray-500 hover:bg-gray-50'
                   }`}
                 >
@@ -189,7 +189,7 @@ export default function CalendarPage() {
                   onClick={() => setFilter('clinical')}
                   className={`w-full text-left p-4 rounded-xl text-sm font-semibold transition-all ${
                     filter === 'clinical'
-                      ? 'bg-gradient-to-r from-indigo-100 to-indigo-50 text-indigo-900 shadow-sm'
+                      ? 'bg-linear-to-r from-indigo-100 to-indigo-50 text-indigo-900 shadow-sm'
                       : 'text-gray-500 hover:bg-gray-50'
                   }`}
                 >
@@ -208,7 +208,7 @@ export default function CalendarPage() {
                   onClick={() => setFilter('exam')}
                   className={`w-full text-left p-4 rounded-xl text-sm font-semibold transition-all ${
                     filter === 'exam'
-                      ? 'bg-gradient-to-r from-red-100 to-red-50 text-red-900 shadow-sm'
+                      ? 'bg-linear-to-r from-red-100 to-red-50 text-red-900 shadow-sm'
                       : 'text-gray-500 hover:bg-gray-50'
                   }`}
                 >
@@ -227,7 +227,7 @@ export default function CalendarPage() {
                   onClick={() => setFilter('school')}
                   className={`w-full text-left p-4 rounded-xl text-sm font-semibold transition-all ${
                     filter === 'school'
-                      ? 'bg-gradient-to-r from-teal-100 to-teal-50 text-teal-900 shadow-sm'
+                      ? 'bg-linear-to-r from-teal-100 to-teal-50 text-teal-900 shadow-sm'
                       : 'text-gray-500 hover:bg-gray-50'
                   }`}
                 >
@@ -273,12 +273,12 @@ export default function CalendarPage() {
                 ) : (
                   selectedDateEvents.map(event => (
                     <div key={event.id} className={`rounded-2xl border-2 overflow-hidden hover:shadow-lg transition-all ${getEventBg(event.type)}`}>
-                      <div className={`h-2 w-full bg-gradient-to-r ${getEventColor(event.type)}`} />
+                      <div className={`h-2 w-full bg-linear-to-r ${getEventColor(event.type)}`} />
                       <div className="p-6">
                         <div className="flex justify-between items-start mb-4">
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-2">
-                              <span className={`text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider bg-gradient-to-r ${getEventColor(event.type)} text-white`}>
+                              <span className={`text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider bg-linear-to-r ${getEventColor(event.type)} text-white`}>
                                 {event.type}
                               </span>
                               {event.status === 'packet-sent' && (
@@ -326,7 +326,7 @@ export default function CalendarPage() {
                                 <button className="px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm font-bold text-gray-700 hover:bg-gray-200 transition-colors">
                                   View Packet
                                 </button>
-                                <button className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 text-white rounded-lg text-sm font-bold hover:shadow-lg transition-all flex items-center gap-2">
+                                <button className="px-4 py-2 bg-linear-to-r from-indigo-600 to-blue-600 text-white rounded-lg text-sm font-bold hover:shadow-lg transition-all flex items-center gap-2">
                                   <Send className="w-4 h-4" />
                                   Resend
                                 </button>
@@ -337,7 +337,7 @@ export default function CalendarPage() {
                             <div className="pt-4 border-t border-gray-200">
                               <h5 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Live Proctor Feedback</h5>
                               <div className="flex items-start gap-3 p-4 bg-amber-50 rounded-lg border-2 border-amber-200">
-                                <div className="flex-shrink-0 w-3 h-3 rounded-full bg-amber-400 mt-1 animate-pulse" />
+                                <div className="shrink-0 w-3 h-3 rounded-full bg-amber-400 mt-1 animate-pulse" />
                                 <div className="flex-1">
                                   <p className="text-xs font-black text-amber-900 mb-1">Sarah Jenkins, RN - Clinical Instructor</p>
                                   <p className="text-sm text-amber-800 leading-relaxed">&quot;Student group arrived on time. One student (J. Doe) needs additional review on sterile technique protocol.&quot;</p>

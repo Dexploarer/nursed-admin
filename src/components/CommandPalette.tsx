@@ -149,21 +149,22 @@ export function CommandPalette() {
 
       {/* Command Palette */}
       <div className="fixed top-[20vh] left-1/2 -translate-x-1/2 z-50 w-full max-w-2xl px-4">
-        <div className="bg-white rounded-lg shadow-2xl border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-2xl border border-gray-200/60 overflow-hidden backdrop-blur-sm">
           {/* Search Input */}
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200">
-            <Search className="w-5 h-5 text-gray-400" />
+          <div className="flex items-center gap-3 px-4 py-4 border-b border-gray-200 bg-linear-to-r from-gray-50/50 to-white">
+            <Search className="w-5 h-5 text-gray-400 shrink-0" />
             <input
               type="text"
               placeholder="Search for pages, students, or actions..."
-              className="flex-1 outline-none text-gray-900 placeholder-gray-400"
+              className="flex-1 outline-none text-gray-900 placeholder-gray-400 bg-transparent"
               value={search}
               onChange={e => setSearch(e.target.value)}
               autoFocus
             />
             <button
               onClick={() => setIsOpen(false)}
-              className="text-gray-400 hover:text-gray-600"
+              className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg p-1 transition-all"
+              aria-label="Close"
             >
               <X className="w-4 h-4" />
             </button>
@@ -192,12 +193,12 @@ export function CommandPalette() {
                       <button
                         key={cmd.id}
                         onClick={cmd.action}
-                        className="w-full flex items-center gap-3 px-4 py-2 hover:bg-gray-50 transition-colors text-left"
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-linear-to-r hover:from-blue-50 hover:to-indigo-50 transition-all text-left rounded-lg mx-1 group"
                       >
-                        <div className="flex items-center justify-center w-8 h-8 bg-gray-100 rounded-lg text-gray-600">
+                        <div className="flex items-center justify-center w-9 h-9 bg-gray-100 group-hover:bg-linear-to-br group-hover:from-blue-500 group-hover:to-indigo-600 rounded-xl text-gray-600 group-hover:text-white transition-all shadow-sm group-hover:shadow-md">
                           {cmd.icon}
                         </div>
-                        <span className="text-gray-900">{cmd.title}</span>
+                        <span className="text-gray-900 font-medium group-hover:text-indigo-700">{cmd.title}</span>
                       </button>
                     ))}
                   </div>

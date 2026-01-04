@@ -1,4 +1,4 @@
-import type { Student, ClinicalLog } from '@/types';
+import type { Student, ClinicalLog, SkillValidation } from '@/types';
 
 /**
  * Export students to CSV file
@@ -95,34 +95,93 @@ export function exportClinicalLogsToCSV(logs: ClinicalLog[], students: Student[]
 
 /**
  * Export skills completion matrix to CSV
+ * Optionally includes validation metadata (date, location, validated by) when validations map is provided
  */
-export function exportSkillsMatrixToCSV(students: Student[], filename: string = 'skills-matrix.csv') {
+export function exportSkillsMatrixToCSV(
+  students: Student[],
+  filename: string = 'skills-matrix.csv',
+  validations?: Map<string, SkillValidation>
+) {
   if (students.length === 0) {
-    alert('No students to export');
     return;
   }
 
-  const skillIds = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6'];
+  // Use the actual CORE_SKILLS from Skills Matrix page
+  const skillIds = [
+    'vitals', 'handwashing', 'bedmaking', 'catheter', 'injection-im', 'injection-subq',
+    'iv-insertion', 'wound-care', 'ng-tube', 'trach-care', 'cpr', 'med-calc', 'glucose', 'ekg', 'ostomy'
+  ];
   const skillNames = [
-    'Medication Administration',
-    'Trach Care/Suctioning',
-    'Foley Catheterization',
-    'NG Tube Placement',
-    'Wound Care (Stage 3+)',
-    'Directing CNAs/Staff',
+    'Vital Signs Assessment',
+    'Hand Hygiene & PPE',
+    'Bed Making (Occupied/Unoccupied)',
+    'Urinary Catheterization',
+    'IM Injection',
+    'SubQ Injection',
+    'Peripheral IV Insertion',
+    'Sterile Dressing Change',
+    'NG Tube Insertion & Care',
+    'Tracheostomy Care',
+    'CPR & Emergency Response',
+    'Medication Dosage Calculation',
+    'Blood Glucose Monitoring',
+    'ECG/EKG Application',
+    'Ostomy Care',
   ];
 
-  const headers = ['Student ID', 'Student Name', ...skillNames];
+  // Build headers - if validations are provided, add metadata columns for each skill
+  let headers: string[];
+  if (validations && validations.size > 0) {
+    // For each skill, add: Proficiency, Date, Location, Validated By
+    const skillHeaders = skillNames.flatMap(name => [
+      `${name} - Status`,
+      `${name} - Date`,
+      `${name} - Location`,
+      `${name} - Validated By`
+    ]);
+    headers = ['Student ID', 'Student Name', 'Cohort', ...skillHeaders, 'Total Completed'];
+  } else {
+    headers = ['Student ID', 'Student Name', 'Cohort', ...skillNames, 'Total Completed'];
+  }
 
   const csvRows = [
     headers.join(','),
-    ...students.map(s => [
-      s.id,
-      `${s.firstName} ${s.lastName}`,
-      ...skillIds.map(skillId =>
-        s.skillsCompleted?.includes(skillId) ? 'Completed' : 'Not Completed'
-      ),
-    ].map(field => `"${field}"`).join(','))
+    ...students.map(s => {
+      const completedCount = s.skillsCompleted?.length || 0;
+
+      let skillData: string[];
+      if (validations && validations.size > 0) {
+        // Include validation metadata for each skill
+        skillData = skillIds.flatMap(skillId => {
+          const validation = validations.get(`${s.id}-${skillId}`);
+          if (validation) {
+            return [
+              validation.proficiency.replace('-', ' '),
+              validation.validatedDate ? new Date(validation.validatedDate).toLocaleDateString() : '',
+              validation.validatedLocation || '',
+              validation.validatedBy || ''
+            ];
+          } else if (s.skillsCompleted?.includes(skillId)) {
+            return ['proficient', '', '', ''];
+          } else {
+            return ['not started', '', '', ''];
+          }
+        });
+      } else {
+        // Simple status only
+        skillData = skillIds.map(skillId =>
+          s.skillsCompleted?.includes(skillId) ? 'Completed' : 'Not Started'
+        );
+      }
+
+      return [
+        `"${s.id}"`,
+        `"${s.firstName} ${s.lastName}"`,
+        `"${s.cohort}"`,
+        ...skillData.map(field => `"${field}"`),
+        completedCount.toString(),
+      ].join(',');
+    })
   ];
 
   const csvContent = csvRows.join('\n');

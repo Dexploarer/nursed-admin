@@ -1,7 +1,7 @@
 
 import { useState, useEffect } from 'react';
 import { loadStudents, getClinicalLogs } from '@/lib/db';
-import { exportStudentsToPDF, exportClinicalLogsToPDF } from '@/lib/pdf-export';
+import { exportStudentsToPDF } from '@/lib/pdf-export';
 import { Student, ClinicalLog } from '@/types';
 import {
   BarChart3,
@@ -10,15 +10,20 @@ import {
   AlertTriangle,
   CheckCircle,
   Target,
-  Loader2,
   Download
 } from 'lucide-react';
+import { useToast } from '@/components/Toast';
+import { Skeleton, SkeletonCard } from '@/components/Skeleton';
+import { ExportDialog, ExportFormat } from '@/components/ExportDialog';
+import { setExportReportsModalTrigger } from '@/hooks/useMenuEvents';
 
 export default function AnalyticsPage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [logs, setLogs] = useState<ClinicalLog[]>([]);
   const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState(false);
+  const [_exporting, setExporting] = useState(false);
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const toast = useToast();
 
   useEffect(() => {
     async function fetchData() {
@@ -39,6 +44,11 @@ export default function AnalyticsPage() {
       }
     }
     fetchData();
+  }, []);
+
+  // Register menu event trigger
+  useEffect(() => {
+    setExportReportsModalTrigger(() => setShowExportDialog(true));
   }, []);
 
   // Calculate analytics
@@ -81,43 +91,68 @@ export default function AnalyticsPage() {
 
   if (loading) {
     return (
-      <div className="container p-8 max-w-7xl mx-auto flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mx-auto mb-4" />
-          <p className="text-gray-500">Loading analytics...</p>
+      <div className="min-h-screen">
+        <header className="mb-8">
+          <Skeleton variant="rectangular" height={60} width="40%" className="mb-3" />
+          <Skeleton variant="text" width="30%" />
+        </header>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {[1, 2, 3, 4].map(i => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <SkeletonCard />
+          <SkeletonCard />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container p-8 max-w-7xl mx-auto">
-      <header className="mb-8 flex justify-between items-center">
-        <div>
-          <h1 className="header-title flex items-center gap-2">
-            <BarChart3 className="w-6 h-6 text-indigo-600" />
-            Advanced Analytics
-          </h1>
-          <p className="text-muted">Fall 2025 Cohort Performance Metrics</p>
+    <div className="min-h-screen">
+      <header className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-linear-to-br from-purple-600 to-pink-600 rounded-2xl shadow-lg">
+            <BarChart3 className="w-8 h-8 text-white" />
+          </div>
+          <div>
+            <h1 className="text-4xl font-black bg-linear-to-r from-gray-900 via-purple-900 to-pink-900 bg-clip-text text-transparent mb-1">
+              Advanced Analytics
+            </h1>
+            <p className="text-gray-600 text-lg font-medium">Fall 2025 Cohort Performance Metrics</p>
+          </div>
         </div>
         <button
-          onClick={async () => {
+          onClick={() => setShowExportDialog(true)}
+          disabled={students.length === 0}
+          className="btn btn-outline flex items-center gap-2 disabled:opacity-50"
+        >
+          <Download className="w-4 h-4" />
+          Export Dashboard
+        </button>
+        <ExportDialog
+          isOpen={showExportDialog}
+          onClose={() => setShowExportDialog(false)}
+          onExport={async (format: ExportFormat) => {
             setExporting(true);
             try {
-              await exportStudentsToPDF(students, 'roster');
+              if (format === 'pdf') {
+                await exportStudentsToPDF(students, 'roster');
+              } else if (format === 'csv') {
+                const { exportStudentsToCSV } = await import('@/lib/csv-export');
+                exportStudentsToCSV(students, 'analytics-export.csv');
+              }
+              toast.success('Export completed', `Data exported as ${format.toUpperCase()}`);
             } catch (error) {
               console.error('Export failed:', error);
-              alert('Failed to export PDF');
+              toast.error('Failed to export', 'Please try again');
             } finally {
               setExporting(false);
             }
           }}
-          disabled={exporting || students.length === 0}
-          className="btn btn-outline flex items-center gap-2 disabled:opacity-50"
-        >
-          <Download className={`w-4 h-4 ${exporting ? 'animate-pulse' : ''}`} />
-          {exporting ? 'Exporting...' : 'Export Dashboard'}
-        </button>
+          title="Export Analytics Dashboard"
+        />
       </header>
 
       {/* Key Metrics */}

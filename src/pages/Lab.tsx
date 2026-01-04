@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Editor from '@/components/Editor';
 import { generateText, generateImage } from '@/lib/ai';
+import { useToast } from '@/components/Toast';
 import {
   HelpCircle,
   BookOpen,
@@ -20,6 +21,7 @@ export default function StudioPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [annotations, setAnnotations] = useState<{ id: number; text: string; comment: string }[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const toast = useToast();
 
   
   const generateMaterial = async (type: string) => {
@@ -114,7 +116,7 @@ export default function StudioPage() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-64px)] overflow-hidden">
+    <div className="flex min-h-[calc(100vh-8rem)] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
       {/* Sidebar Controls */}
       <aside className="w-80 border-r bg-white p-6 overflow-y-auto space-y-8 shadow-sm z-10">
         <div>
@@ -252,7 +254,23 @@ export default function StudioPage() {
                 <Book className="w-4 h-4 text-gray-400" />
                 Audit Sources
               </button>
-              <button className="btn btn-primary bg-indigo-600 hover:bg-indigo-700">
+              <button
+                onClick={async () => {
+                  if (!content || content.trim() === '') {
+                    toast.error('No Content', 'Please generate or add content before exporting');
+                    return;
+                  }
+                  try {
+                    const { exportLabContentToPDF } = await import('@/lib/lab-export');
+                    await exportLabContentToPDF(content, 'Lab Content');
+                    toast.success('Export Complete', 'Lab content exported successfully');
+                  } catch (error) {
+                    console.error('Export failed:', error);
+                    toast.error('Export Failed', 'Failed to export PDF. Please try again.');
+                  }
+                }}
+                className="btn btn-primary bg-indigo-600 hover:bg-indigo-700"
+              >
                 <FileText className="w-4 h-4" />
                 Export PDF
               </button>
@@ -263,7 +281,7 @@ export default function StudioPage() {
            <div className="mb-4 mx-2 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
              <div className="w-2 h-2 rounded-full bg-red-500"></div>
              {errorMessage}
-             <button onClick={() => setErrorMessage(null)} className="ml-auto text-xs font-bold hover:underline">Dismiss</button>
+             <button onClick={() => setErrorMessage(null)} className="ml-auto px-3 py-1 text-xs font-semibold text-red-700 hover:bg-red-50 rounded-lg transition-all">Dismiss</button>
            </div>
         )}
 

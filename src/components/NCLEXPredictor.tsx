@@ -70,7 +70,7 @@ export default function NCLEXPredictor({ students }: NCLEXPredictorProps) {
   };
 
   return (
-    <div className="card overflow-hidden border-t-4 border-t-amber-500">
+    <div className="card overflow-hidden border-t-4 border-t-amber-500 shadow-lg">
       <div className="p-4 border-b border-gray-100 bg-amber-50/50 flex justify-between items-center">
         <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
           <Trophy className="w-5 h-5 text-amber-600" />

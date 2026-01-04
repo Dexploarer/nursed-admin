@@ -3,7 +3,6 @@ import { createContext, useContext, useState, useEffect, ReactNode } from 'react
 import {
   InstructorProfile,
   loadInstructorProfile,
-  saveInstructorProfile,
   updateInstructorProfile as updateProfile,
   updatePreferences as updatePrefs,
   getInstructorDisplayName,

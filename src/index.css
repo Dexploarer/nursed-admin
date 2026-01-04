@@ -1,125 +1,46 @@
 @import 'tailwindcss';
 
-:root {
-  /* Clinical Premium Palette */
-  --color-primary: #0f4c75; /* Deep Navy Medical */
-  --color-primary-light: #3282b8;
-  --color-secondary: #00b894; /* Clinical Teal */
-  --color-accent: #fdcb6e; /* Attention/Alert */
-  --color-danger: #d63031;
-  --color-success: #00b894;
-
-  --color-background: #f8f9fa; /* Clean light gray */
-  --color-surface: #ffffff;
-  --color-text-main: #2d3436;
-  --color-text-muted: #636e72;
-  --color-border: #dfe6e9;
-
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  --radius-md: 8px;
-  --radius-lg: 12px;
-
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, sans-serif;
-}
-
+/* Base styles - minimal overrides */
 * {
   box-sizing: border-box;
-  margin: 0;
-  padding: 0;
 }
 
 body {
-  font-family: var(--font-sans);
-  background-color: var(--color-background);
-  color: var(--color-text-main);
-  line-height: 1.5;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
-/* Utilities */
-.container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 24px;
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
-.card {
-  background: var(--color-surface);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--color-border);
-  padding: 24px;
+/* Custom Scrollbar Styles */
+.scrollbar-thin {
+  scrollbar-width: thin;
 }
 
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 10px 20px;
-  border-radius: var(--radius-md);
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: none;
-  font-size: 0.95rem;
-  gap: 8px;
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
 
-.btn-primary {
-  background-color: var(--color-primary);
-  color: white;
+.scrollbar-thumb-gray-300::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 3px;
 }
 
-.btn-primary:hover {
-  background-color: #0a3d61;
+.scrollbar-thumb-gray-300::-webkit-scrollbar-thumb:hover {
+  background-color: #9ca3af;
 }
 
-.btn-outline {
-  background-color: transparent;
-  border: 1px solid var(--color-border);
-  color: var(--color-text-main);
-}
-
-.btn-outline:hover {
-  background-color: var(--color-background);
-}
-
-.badge {
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.badge-success {
-  background: #e6fffa;
-  color: #00b894;
-}
-.badge-warning {
-  background: #fff8e1;
-  color: #ffa000;
-}
-.badge-danger {
-  background: #ffebee;
-  color: #d63031;
-}
-
-.grid-dashboard {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 24px;
-  margin-top: 24px;
-}
-
-.header-title {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: var(--color-primary);
-  margin-bottom: 8px;
+.scrollbar-track-transparent::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 /* Rich Text Editor / Prose Styles */
@@ -132,14 +53,14 @@ body {
   font-size: 2rem;
   font-weight: 800;
   margin-bottom: 1.5rem;
-  color: var(--color-primary);
+  color: #0f4c75;
 }
 .prose h2 {
   font-size: 1.5rem;
   font-weight: 700;
   margin-top: 2rem;
   margin-bottom: 1rem;
-  color: var(--color-primary-light);
+  color: #3282b8;
 }
 .prose p {
   margin-bottom: 1rem;
@@ -153,10 +74,10 @@ body {
   margin-bottom: 0.5rem;
 }
 .prose blockquote {
-  border-left: 4px solid var(--color-secondary);
+  border-left: 4px solid #00b894;
   padding-left: 1rem;
-  italic: true;
-  color: var(--color-text-muted);
+  font-style: italic;
+  color: #636e72;
 }
 
 .ProseMirror {
@@ -170,4 +91,26 @@ body {
   color: #adb5bd;
   pointer-events: none;
   height: 0;
+}
+
+/* Animations */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite linear;
+  background: linear-gradient(
+    to right,
+    #f0f0f0 0%,
+    #e0e0e0 20%,
+    #f0f0f0 40%,
+    #f0f0f0 100%
+  );
+  background-size: 1000px 100%;
 }

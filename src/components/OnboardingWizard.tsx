@@ -31,13 +31,13 @@ export function OnboardingWizard() {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full overflow-hidden">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden border border-gray-100">
         {step === 1 && (
           <div className="p-8">
             <div className="flex items-center justify-center mb-6">
-              <div className="p-4 bg-indigo-100 rounded-full">
-                <Rocket className="w-12 h-12 text-indigo-600" />
+              <div className="p-4 bg-linear-to-br from-indigo-500 to-blue-600 rounded-2xl shadow-lg">
+                <Rocket className="w-12 h-12 text-white" />
               </div>
             </div>
             <h2 className="text-3xl font-bold text-center text-gray-900 mb-4">
@@ -168,19 +168,19 @@ export function OnboardingWizard() {
             </div>
 
             <div className="flex gap-3 mt-8">
-              <button
-                onClick={() => setStep(1)}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-              >
-                Back
-              </button>
-              <button
-                onClick={handleComplete}
-                disabled={!formData.firstName || !formData.lastName || !formData.email}
-                className="flex-1 btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Complete Setup
-              </button>
+            <button
+              onClick={() => setStep(1)}
+              className="flex-1 px-5 py-2.5 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 hover:border-gray-400 font-semibold transition-all whitespace-nowrap"
+            >
+              Back
+            </button>
+            <button
+              onClick={handleComplete}
+              disabled={!formData.firstName || !formData.lastName || !formData.email}
+              className="flex-1 btn btn-primary disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+            >
+              Complete Setup
+            </button>
             </div>
           </div>
         )}
