@@ -1,24 +1,51 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { loadStudents, getClinicalLogs, approveClinicalLog } from '@/lib/db';
-import { Student, ClinicalLog } from '@/types';
-import { AlertCircle, FileText, Users, CheckCircle, Loader2, ThumbsUp } from 'lucide-react';
+import { format } from 'date-fns';
+import { getClinicalLogs, approveClinicalLog, getSitesWithExpiringContracts } from '@/lib/db';
+import { ClinicalLog, ClinicalSite } from '@/types';
+import { useStudentData } from '@/contexts/StudentDataContext';
+import { 
+  AlertCircle, Users, CheckCircle, ThumbsUp, Sun, CloudSun, Moon, 
+  Building2, FileWarning, TrendingUp
+} from 'lucide-react';
 import NCLEXPredictor from '@/components/NCLEXPredictor';
+import TodaysTeachingView from '@/components/TodaysTeachingView';
+import QuickActions from '@/components/QuickActions';
+import PendingTasks from '@/components/PendingTasks';
+import StudentsNeedingAttention from '@/components/StudentsNeedingAttention';
+import CompHoursWidget from '@/components/CompHoursWidget';
+import { useToast } from '@/components/Toast';
+import { Skeleton, SkeletonCard } from '@/components/Skeleton';
+import { StatCard } from '@/components/StatCard';
+import { AlertCard } from '@/components/AlertCard';
+import { Card } from '@/components/Card';
+import { Button } from '@/components/Button';
+
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return { text: 'Good Morning', icon: Sun, color: 'text-amber-500' };
+  if (hour < 17) return { text: 'Good Afternoon', icon: CloudSun, color: 'text-orange-500' };
+  return { text: 'Good Evening', icon: Moon, color: 'text-indigo-500' };
+}
 
 export default function Home() {
-  const [students, setStudents] = useState<Student[]>([]);
+  const { students, loading: studentsLoading, refreshStudents } = useStudentData();
   const [logs, setLogs] = useState<ClinicalLog[]>([]);
+  const [expiringSites, setExpiringSites] = useState<ClinicalSite[]>([]);
   const [loading, setLoading] = useState(true);
   const [approvingLogs, setApprovingLogs] = useState<Set<string>>(new Set());
+  const { success: showSuccess, error: showError } = useToast();
+
+  const greeting = getGreeting();
+  const todayFormatted = format(new Date(), 'EEEE, MMMM do, yyyy');
+  const GreetingIcon = greeting.icon;
 
   const fetchData = async () => {
     try {
-      const studentData = await loadStudents();
-      setStudents(studentData);
+      const sitesExpiring = await getSitesWithExpiringContracts(90).catch(() => []);
+      setExpiringSites(sitesExpiring);
 
-      // Fetch logs for all students
       const allLogs: ClinicalLog[] = [];
-      for (const student of studentData) {
+      for (const student of students) {
         const studentLogs = await getClinicalLogs(student.id);
         allLogs.push(...studentLogs);
       }
@@ -31,18 +58,20 @@ export default function Home() {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (!studentsLoading && students.length >= 0) {
+      fetchData();
+    }
+  }, [students, studentsLoading]);
 
   const handleApprove = async (logId: string) => {
     setApprovingLogs(prev => new Set(prev).add(logId));
     try {
       await approveClinicalLog(logId);
-      // Refresh data
-      await fetchData();
+      await Promise.all([fetchData(), refreshStudents()]);
+      showSuccess('Clinical log approved', 'The log has been successfully approved');
     } catch (error) {
       console.error('Failed to approve log:', error);
-      alert('Failed to approve clinical log');
+      showError('Failed to approve clinical log', 'Please try again');
     } finally {
       setApprovingLogs(prev => {
         const next = new Set(prev);
@@ -52,14 +81,10 @@ export default function Home() {
     }
   };
 
-  // Calculate real metrics from SQLite data
   const atRiskStudents = students.filter(s => s.status === 'At Risk');
   const pendingLogs = logs.filter(l => l.status === 'Pending');
-
-  // VBON 1:10 faculty ratio check
   const complianceAlert = students.length > 10;
 
-  // Calculate cohort averages
   const avgClinicalHours = students.length > 0
     ? Math.round(students.reduce((sum, s) => sum + s.clinicalHoursCompleted, 0) / students.length)
     : 0;
@@ -68,197 +93,263 @@ export default function Home() {
     ? Math.round((avgClinicalHours / 400) * 100)
     : 0;
 
-  if (loading) {
+  if (loading || studentsLoading) {
     return (
-      <div className="container flex items-center justify-center min-h-[60vh]">
-        <div className="text-center">
-          <Loader2 className="w-10 h-10 text-indigo-600 animate-spin mx-auto mb-4" />
-          <p className="text-gray-500">Loading dashboard data...</p>
+      <div className="space-y-8">
+        <div className="h-24">
+          <Skeleton variant="rectangular" height={60} width="40%" className="mb-3" />
+          <Skeleton variant="text" width="30%" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => (
+            <SkeletonCard key={i} />
+          ))}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <SkeletonCard />
+          <SkeletonCard />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 -m-8 p-8">
-        <header className="mb-8">
-          <h1 className="text-4xl font-black text-gray-900 mb-2">Instructor Dashboard</h1>
-          <p className="text-gray-600 text-lg">Overview for Fall 2025 Practical Nursing Cohort</p>
-        </header>
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="p-4 bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl shadow-lg">
+            <GreetingIcon className={`w-8 h-8 ${greeting.color}`} />
+          </div>
+          <div>
+            <h1 className="text-4xl font-extrabold text-slate-900 tracking-tight">{greeting.text}</h1>
+            <p className="text-slate-600 mt-1.5 font-medium">{todayFormatted} • Fall 2025 Practical Nursing Cohort</p>
+          </div>
+        </div>
+      </div>
 
+      {/* Alerts */}
+      <div className="space-y-4">
         {complianceAlert && (
-           <div className="mb-8 bg-red-50 border-2 border-red-200 text-red-700 px-6 py-4 rounded-2xl flex items-center gap-3 shadow-md">
-              <div className="p-2 bg-red-100 rounded-xl">
-                <AlertCircle className="w-6 h-6 text-red-600" />
-              </div>
-              <div>
-                <span className="font-black">VBON Compliance Alert:</span> Clinical group size exceeds 10:1 ratio.
-              </div>
-           </div>
+          <AlertCard
+            icon={AlertCircle}
+            title="VBON Compliance Alert"
+            message="Clinical group size exceeds 10:1 ratio. Action required to maintain compliance."
+            variant="error"
+            action={{
+              label: 'Review Students',
+              onClick: () => window.location.href = '/students',
+            }}
+          />
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {/* Metric Cards */}
-          <Link to="/students" className="bg-white rounded-2xl p-6 shadow-md border border-gray-100 hover:shadow-xl transition-all cursor-pointer">
-            <div className="flex items-center justify-between mb-3">
-              <div className="p-3 bg-blue-100 rounded-xl">
-                <Users className="w-6 h-6 text-blue-600" />
-              </div>
+        {expiringSites.length > 0 && (
+          <AlertCard
+            icon={FileWarning}
+            title={`${expiringSites.length} Clinical Site Contract${expiringSites.length > 1 ? 's' : ''} Expiring`}
+            message={`${expiringSites.length} site${expiringSites.length > 1 ? 's' : ''} require${expiringSites.length === 1 ? 's' : ''} contract renewal within 90 days`}
+            variant="warning"
+            action={{
+              label: 'View Sites',
+              onClick: () => window.location.href = '/clinicals',
+            }}
+          >
+            <div className="space-y-2">
+              {expiringSites.slice(0, 3).map(site => {
+                const expiry = new Date(site.contractExpirationDate!);
+                const today = new Date();
+                const daysLeft = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+                const isExpired = daysLeft < 0;
+                return (
+                  <div key={site.id} className="flex items-center justify-between bg-white/60 backdrop-blur-sm rounded-lg px-3 py-2 border border-amber-200/40">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Building2 className="w-4 h-4 shrink-0 text-amber-600" />
+                      <span className="font-semibold text-amber-900 truncate">{site.name}</span>
+                      {site.unitName && (
+                        <span className="text-xs text-amber-600 shrink-0">({site.unitName})</span>
+                      )}
+                    </div>
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-md shrink-0 ${
+                      isExpired ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      {isExpired ? 'EXPIRED' : `${daysLeft} days`}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
-            <div className="text-3xl font-black text-gray-900 mb-1">{students.length}</div>
-            <div className="text-sm text-gray-500 font-medium">Total Students</div>
-          </Link>
+          </AlertCard>
+        )}
+      </div>
 
-          <Link to="/students" className="bg-white rounded-2xl p-6 shadow-md border border-gray-100 hover:shadow-xl transition-all cursor-pointer">
-            <div className="flex items-center justify-between mb-3">
-              <div className="p-3 bg-yellow-100 rounded-xl">
-                <AlertCircle className="w-6 h-6 text-yellow-600" />
-              </div>
-            </div>
-            <div className="text-3xl font-black text-gray-900 mb-1">{atRiskStudents.length}</div>
-            <div className="text-sm text-gray-500 font-medium">At Risk Students</div>
-          </Link>
+      {/* Today's Teaching View */}
+      <TodaysTeachingView />
 
-          <Link to="/clinicals" className="bg-white rounded-2xl p-6 shadow-md border border-gray-100 hover:shadow-xl transition-all cursor-pointer">
-            <div className="flex items-center justify-between mb-3">
-              <div className="p-3 bg-teal-100 rounded-xl">
-                <FileText className="w-6 h-6 text-teal-600" />
-              </div>
-            </div>
-            <div className="text-3xl font-black text-gray-900 mb-1">{pendingLogs.length}</div>
-            <div className="text-sm text-gray-500 font-medium">Pending Clinical Logs</div>
-          </Link>
-        </div>
+      {/* Quick Actions */}
+      <QuickActions pendingLogsCount={pendingLogs.length} onAttendanceComplete={async () => {
+        await fetchData();
+        await refreshStudents();
+      }} />
 
-        {/* VBON Audit Readiness Widget */}
-        <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-blue-50 flex justify-between items-center">
-            <h2 className="text-xl font-black text-gray-900 flex items-center gap-2">
-              <CheckCircle className="w-6 h-6 text-indigo-600" />
-              Program Audit Readiness (VBON 2025)
-            </h2>
-            <span className="text-xs font-black text-indigo-700 bg-indigo-100 px-3 py-1.5 rounded-lg">VBON 18VAC90-27</span>
-          </div>
-        <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm font-medium">
-              <span className="text-gray-600">Clinical Hours (400h)</span>
-              <span className={avgCompletion >= 50 ? "text-indigo-600" : "text-orange-600"}>
-                {avgCompletion >= 75 ? "On Track" : avgCompletion >= 50 ? "Progressing" : "Behind"}
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          icon={Users}
+          value={students.length}
+          label="Total Students"
+          color="cyan"
+        />
+        <StatCard
+          icon={AlertCircle}
+          value={atRiskStudents.length}
+          label="At Risk Students"
+          color="amber"
+        />
+        <StatCard
+          icon={TrendingUp}
+          value={`${avgCompletion}%`}
+          label="Avg Completion"
+          color="emerald"
+        />
+        <StatCard
+          icon={CheckCircle}
+          value={pendingLogs.length}
+          label="Pending Logs"
+          color="rose"
+        />
+      </div>
+
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <StudentsNeedingAttention students={students} />
+        <PendingTasks pendingLogsCount={pendingLogs.length} onRefresh={async () => {
+          await fetchData();
+          await refreshStudents();
+        }} />
+      </div>
+
+      {/* VBON Audit Readiness */}
+      <Card
+        title="Program Audit Readiness"
+        subtitle="VBON 2025 Compliance"
+        headerAction={
+          <span className="text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+            VBON 18VAC90-27
+          </span>
+        }
+      >
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-slate-700">Clinical Hours (400h)</span>
+              <span className={`text-sm font-bold ${
+                avgCompletion >= 75 ? 'text-emerald-600' : 
+                avgCompletion >= 50 ? 'text-amber-600' : 'text-rose-600'
+              }`}>
+                {avgCompletion >= 75 ? 'On Track' : avgCompletion >= 50 ? 'Progressing' : 'Behind'}
               </span>
             </div>
-            <div className="w-full bg-gray-100 rounded-full h-2">
-              <div className="bg-indigo-600 h-2 rounded-full" style={{ width: `${Math.min(avgCompletion, 100)}%` }}></div>
+            <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+              <div 
+                className={`h-full rounded-full transition-all ${
+                  avgCompletion >= 75 ? 'bg-emerald-500' : 
+                  avgCompletion >= 50 ? 'bg-amber-500' : 'bg-rose-500'
+                }`}
+                style={{ width: `${Math.min(avgCompletion, 100)}%` }}
+              />
             </div>
-            <p className="text-[10px] text-gray-400 font-medium tracking-tight">
+            <p className="text-xs text-slate-500 font-medium">
               Avg {avgClinicalHours}h / 400h across cohort
             </p>
           </div>
 
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm font-medium">
-              <span className="text-gray-600">Simulation Cap (25%)</span>
-              <span className="text-green-600">Compliant</span>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-slate-700">Simulation Cap (25%)</span>
+              <span className="text-sm font-bold text-emerald-600">Compliant</span>
             </div>
-            <div className="w-full bg-gray-100 rounded-full h-2">
-              <div className="bg-green-500 h-2 rounded-full" style={{ width: '18%' }}></div>
+            <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+              <div className="h-full bg-emerald-500 rounded-full" style={{ width: '18%' }} />
             </div>
-            <p className="text-[10px] text-gray-400 font-medium tracking-tight">Currently 18% avg (Limit 25%)</p>
+            <p className="text-xs text-slate-500 font-medium">Currently 18% avg (Limit 25%)</p>
           </div>
 
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm font-medium">
-              <span className="text-gray-600">Faculty Ratio (1:10)</span>
-              <span className={complianceAlert ? "text-red-600" : "text-green-600"}>
-                {complianceAlert ? "Action Required" : "Compliant"}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-semibold text-slate-700">Faculty Ratio (1:10)</span>
+              <span className={`text-sm font-bold ${complianceAlert ? 'text-rose-600' : 'text-emerald-600'}`}>
+                {complianceAlert ? 'Action Required' : 'Compliant'}
               </span>
             </div>
-            <div className="flex items-center gap-2 text-xl font-bold text-gray-800">
-               {students.length}:1
-               <span className="text-xs font-normal text-gray-400">ratio for Fall 2025</span>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-extrabold text-slate-900">{students.length}:1</span>
+              <span className="text-xs text-slate-500 font-medium">ratio for Fall 2025</span>
             </div>
             {complianceAlert && (
-              <p className="text-[10px] text-red-500 font-bold uppercase tracking-tighter">Site Visit Violation Risk</p>
+              <p className="text-xs font-bold text-rose-600 uppercase tracking-wide">
+                Site Visit Violation Risk
+              </p>
             )}
           </div>
         </div>
-      </div>
+      </Card>
 
-      {/* NCLEX Predictor Widget */}
-      <div className="mt-8">
-        <NCLEXPredictor students={students} />
-      </div>
+      {/* Comp Hours Widget */}
+      <CompHoursWidget />
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8">
-          <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100">
-            <h2 className="text-xl font-black text-gray-900 mb-6 flex items-center gap-2">
-              <Users className="w-6 h-6 text-indigo-600" />
-              Students Requiring Attention
-            </h2>
-            {atRiskStudents.length > 0 ? (
-              <div className="space-y-3">
-                {atRiskStudents.slice(0, 5).map(student => (
-                  <Link
-                    key={student.id}
-                    to={`/students/view?id=${student.id}`}
-                    className="flex justify-between items-center p-4 border-2 border-gray-100 rounded-xl border-l-4 border-l-yellow-500 hover:bg-gray-50 hover:shadow-md transition-all cursor-pointer"
-                  >
-                    <div>
-                      <div className="font-bold text-gray-900">{student.firstName} {student.lastName}</div>
-                      <div className="text-sm text-gray-500 mt-1">Clinical Hours: {student.clinicalHoursCompleted}/{student.clinicalHoursRequired}</div>
+      {/* NCLEX Predictor */}
+      <NCLEXPredictor students={students} />
+
+      {/* Quick Log Approval */}
+      {pendingLogs.length > 0 && (
+        <Card
+          title="Quick Log Approval"
+          headerAction={
+            <span className="text-xs font-bold text-cyan-700 bg-cyan-100 px-3 py-1.5 rounded-lg border border-cyan-200">
+              {pendingLogs.length} pending
+            </span>
+          }
+        >
+          <div className="space-y-3 max-h-[400px] overflow-y-auto">
+            {pendingLogs.slice(0, 5).map(log => {
+              const student = students.find(s => s.id === log.studentId);
+              const isApproving = approvingLogs.has(log.id);
+              return (
+                <div 
+                  key={log.id} 
+                  className="flex items-center justify-between p-4 border border-slate-200 rounded-xl hover:bg-slate-50/50 transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-bold text-slate-900 truncate">
+                        {student?.firstName} {student?.lastName}
+                      </span>
+                      <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-md text-xs font-bold shrink-0 border border-amber-200">
+                        Pending
+                      </span>
                     </div>
-                    <span className="px-3 py-1.5 bg-yellow-100 text-yellow-700 rounded-lg text-sm font-bold">At Risk</span>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-               <div className="text-gray-500 italic text-center py-8">All students are on track.</div>
-            )}
-        </div>
-
-          <div className="bg-white rounded-2xl p-6 shadow-md border border-gray-100">
-            <h2 className="text-xl font-black text-gray-900 mb-6 flex items-center gap-2">
-              <FileText className="w-6 h-6 text-indigo-600" />
-              Pending Clinical Logs
-            </h2>
-            <div className="space-y-3">
-              {pendingLogs.length > 0 ? pendingLogs.slice(0, 5).map(log => {
-                const student = students.find(s => s.id === log.studentId);
-                const isApproving = approvingLogs.has(log.id);
-                return (
-                  <div key={log.id} className="flex items-center justify-between p-4 border-2 border-gray-100 rounded-xl hover:bg-gray-50 hover:shadow-md transition-all">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="font-bold text-gray-900">{student?.firstName} {student?.lastName}</span>
-                        <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-lg text-xs font-bold">Pending</span>
-                      </div>
-                      <div className="text-sm text-gray-600 font-medium">
-                        Site: {log.siteName}
-                      </div>
-                      <div className="text-xs text-gray-400 mt-1">
-                        {log.date}
-                      </div>
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <span className="font-semibold truncate">{log.siteName}</span>
+                      <span className="text-slate-400">•</span>
+                      <span className="shrink-0">{log.date}</span>
                     </div>
-                    <button
-                      onClick={() => handleApprove(log.id)}
-                      disabled={isApproving}
-                      className="ml-4 px-4 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-bold transition-all shadow-sm hover:shadow-md"
-                    >
-                      {isApproving ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <ThumbsUp className="w-4 h-4" />
-                      )}
-                      {isApproving ? 'Approving...' : 'Approve'}
-                    </button>
                   </div>
-                );
-              }) : (
-                <div className="text-gray-500 italic text-center py-8">No pending clinical logs to review.</div>
-              )}
-            </div>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => handleApprove(log.id)}
+                    loading={isApproving}
+                    icon={<ThumbsUp className="w-4 h-4" />}
+                    className="ml-4 shrink-0"
+                  >
+                    {isApproving ? 'Approving...' : 'Approve'}
+                  </Button>
+                </div>
+              );
+            })}
           </div>
-        </div>
+        </Card>
+      )}
     </div>
   );
 }

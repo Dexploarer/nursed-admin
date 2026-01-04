@@ -2,24 +2,37 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Student } from '@/types';
-import { loadStudents, enrollStudent, updateStudent } from '@/lib/db';
+import { useStudentData } from '@/contexts/StudentDataContext';
+import { setNewStudentModalTrigger, setImportDataModalTrigger } from '@/hooks/useMenuEvents';
 import { parseStudentCSV, validateStudents, downloadCSVTemplate } from '@/lib/csv-import';
 import { exportStudentsToPDF } from '@/lib/pdf-export';
 import { exportStudentsToCSV } from '@/lib/csv-export';
 import { undoManager } from '@/lib/undo-manager';
-import { Search, MoreVertical, TrendingUp, AlertOctagon, BrainCircuit, Table, BarChart, CheckCircle, Upload, Download, FileSpreadsheet, Users, ChevronUp, ChevronDown, Filter, X } from 'lucide-react';
+import { Search, TrendingUp, AlertOctagon, BrainCircuit, Table, BarChart, CheckCircle, Upload, Download, FileSpreadsheet, Users, ChevronUp, ChevronDown, Filter, Trash2 } from 'lucide-react';
+import { useToast } from '@/components/Toast';
+import { Modal } from '@/components/Modal';
+import { BulkActionsBar } from '@/components/BulkActionsBar';
+import { FormField, Input } from '@/components/FormField';
+import { EmptyState } from '@/components/EmptyState';
+import { FileUpload } from '@/components/FileUpload';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 
 type SortField = 'name' | 'status' | 'hours' | 'predictor';
 type SortDirection = 'asc' | 'desc';
 
 export default function StudentsPage() {
+  const { students, addStudent, updateStudent, deleteStudents: deleteStudentsContext } = useStudentData();
   const [viewMode, setViewMode] = useState<'roster' | 'nclex'>('roster');
   const [showModal, setShowModal] = useState(false);
+  const [_showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [students, setStudents] = useState<Student[]>([]);
-  const [newStudent, setNewStudent] = useState({ firstName: '', lastName: '', email: '', dob: '' });
+  const [newStudent, setNewStudent] = useState({ firstName: '', lastName: '', email: '', dob: '', cohort: 'Fall 2025' });
+  const [_editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [importing, setImporting] = useState(false);
   const [importErrors, setImportErrors] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState(false);
+  const toast = useToast();
 
   // Power user features
   const [selectedStudents, setSelectedStudents] = useState<Set<string>>(new Set());
@@ -27,9 +40,14 @@ export default function StudentsPage() {
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [_showExportDialog, _setShowExportDialog] = useState(false);
 
+  // Students are now loaded via context, no need for manual loading
+
+  // Register menu event triggers
   useEffect(() => {
-    loadStudents().then(setStudents).catch(console.error);
+    setNewStudentModalTrigger(() => setShowModal(true));
+    setImportDataModalTrigger(() => setShowImportModal(true));
   }, []);
 
   const handleEnroll = async (e: React.FormEvent) => {
@@ -50,51 +68,63 @@ export default function StudentsPage() {
       grades: []
     };
 
-    await enrollStudent(student);
-    const updated = await loadStudents();
-    setStudents(updated);
-    
+    await addStudent(student);
+
     setShowModal(false);
-    setNewStudent({ firstName: '', lastName: '', email: '', dob: '' });
+    setNewStudent({ firstName: '', lastName: '', email: '', dob: '', cohort: 'Fall 2025' });
+    toast.success('Student enrolled successfully!', `${student.firstName} ${student.lastName} has been added to the cohort`);
   };
 
-  const handleCSVImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleEdit = (student: Student) => {
+    setEditingStudent(student);
+    setShowEditModal(true);
+  };
 
-    setImporting(true);
-    setImportErrors([]);
+  const handleDelete = async () => {
+    if (selectedStudents.size === 0) {
+      toast.error('No Selection', 'Please select at least one student to delete');
+      return;
+    }
 
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (selectedStudents.size === 0) return;
+
+    // Capture the selected IDs before any state changes
+    const selectedIds = Array.from(selectedStudents);
+    const studentsToDelete = students.filter(s => selectedIds.includes(s.id));
+
+    if (studentsToDelete.length === 0) {
+      toast.error('No Students Found', 'Selected students could not be found');
+      setShowDeleteModal(false);
+      return;
+    }
+
+    const count = studentsToDelete.length;
+
+    setDeleting(true);
     try {
-      const parsedStudents = await parseStudentCSV(file);
-      const { valid, errors } = validateStudents(parsedStudents);
+      console.log(`Starting deletion of ${count} students:`, selectedIds);
 
-      if (errors.length > 0) {
-        setImportErrors(errors);
-      }
+      // Delete all selected students using context method (will auto-refresh)
+      await deleteStudentsContext(selectedIds);
 
-      // Import valid students
-      for (const student of valid) {
-        await enrollStudent(student);
-      }
+      console.log('Deletion completed and data refreshed');
 
-      // Reload students
-      const updated = await loadStudents();
-      setStudents(updated);
-
-      if (valid.length > 0) {
-        alert(`Successfully imported ${valid.length} student(s)${errors.length > 0 ? `. ${errors.length} errors found.` : '.'}`);
-      }
-
-      if (errors.length === 0) {
-        setShowImportModal(false);
-      }
+      setSelectedStudents(new Set());
+      setShowDeleteModal(false);
+      toast.success(
+        `${count} Student${count > 1 ? 's' : ''} Deleted`,
+        `${count} student${count > 1 ? 's have' : ' has'} been removed from the cohort`
+      );
     } catch (error) {
-      console.error('Import failed:', error);
-      setImportErrors([error instanceof Error ? error.message : 'Import failed']);
+      console.error('Failed to delete students:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to delete students. Please try again.';
+      toast.error('Delete Failed', errorMessage);
     } finally {
-      setImporting(false);
-      e.target.value = ''; // Reset file input
+      setDeleting(false);
     }
   };
 
@@ -122,45 +152,42 @@ export default function StudentsPage() {
 
     const studentsToUpdate = students.filter(s => selectedStudents.has(s.id));
     const previousStates = studentsToUpdate.map(s => ({ ...s }));
+    const updateCount = selectedStudents.size;
 
     try {
-      // Update all selected students
+      // Update all selected students (context will auto-refresh)
       for (const student of studentsToUpdate) {
         const updated: Student = { ...student, status: newStatus };
         await updateStudent(updated);
       }
 
-      // Reload students
-      const updated = await loadStudents();
-      setStudents(updated);
-
       // Add undo action
       undoManager.addAction({
         id: `bulk-status-${Date.now()}`,
         type: 'bulk_update',
-        description: `Changed ${selectedStudents.size} student(s) status to ${newStatus}`,
+        description: `Changed ${updateCount} student(s) status to ${newStatus}`,
         timestamp: Date.now(),
         undo: async () => {
           for (const student of previousStates) {
             await updateStudent(student);
           }
-          const reverted = await loadStudents();
-          setStudents(reverted);
         },
         redo: async () => {
           for (const student of studentsToUpdate) {
             const updated: Student = { ...student, status: newStatus };
             await updateStudent(updated);
           }
-          const redone = await loadStudents();
-          setStudents(redone);
         }
       });
 
       setSelectedStudents(new Set());
+      toast.success(
+        `Updated ${updateCount} student(s)`,
+        `Status changed to ${newStatus}`
+      );
     } catch (error) {
       console.error('Bulk update failed:', error);
-      alert('Failed to update students');
+      toast.error('Failed to update students', 'Please try again');
     }
   };
 
@@ -228,120 +255,136 @@ export default function StudentsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 -m-8 p-8">
-        <header className="mb-8 flex justify-between items-center">
-          <div>
-            <h1 className="text-4xl font-black text-gray-900 mb-2 flex items-center gap-2">
-              {viewMode === 'roster' ? 'Student Roster' : 'NCLEX Readiness'}
-            </h1>
-            <p className="text-gray-600 text-lg">Fall 2025 Cohort | {students.length} Students</p>
+    <div className="min-h-screen">
+        <header className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-linear-to-br from-indigo-600 to-blue-600 rounded-2xl shadow-lg">
+              <Users className="w-8 h-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-4xl font-black bg-linear-to-r from-gray-900 via-indigo-900 to-blue-900 bg-clip-text text-transparent mb-1 flex items-center gap-2">
+                {viewMode === 'roster' ? 'Student Roster' : 'NCLEX Readiness'}
+              </h1>
+              <p className="text-gray-600 text-lg font-medium">Fall 2025 Cohort | {students.length} Students</p>
+            </div>
           </div>
           <div className="flex gap-3">
             <div className="bg-white p-1.5 rounded-xl flex shadow-sm border border-gray-200">
                <button
                   onClick={() => setViewMode('roster')}
-                  className={`px-4 py-2 text-sm font-bold rounded-lg flex items-center gap-2 transition-all ${
+                  className={`px-4 py-2 text-sm font-bold rounded-lg flex items-center gap-2 transition-all whitespace-nowrap ${
                     viewMode === 'roster' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-600 hover:text-gray-900'
                   }`}
                >
-                  <Table className="w-4 h-4" />
-                  Roster
+                  <Table className="w-4 h-4 shrink-0" />
+                  <span className="truncate">Roster</span>
                </button>
                <button
                   onClick={() => setViewMode('nclex')}
-                  className={`px-4 py-2 text-sm font-bold rounded-lg flex items-center gap-2 transition-all ${
+                  className={`px-4 py-2 text-sm font-bold rounded-lg flex items-center gap-2 transition-all whitespace-nowrap ${
                     viewMode === 'nclex' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-600 hover:text-gray-900'
                   }`}
                >
-                  <BarChart className="w-4 h-4" />
-                  NCLEX Dash
+                  <BarChart className="w-4 h-4 shrink-0" />
+                  <span className="truncate">NCLEX Dash</span>
                </button>
             </div>
             <div className="flex gap-3">
               <button
                 onClick={() => exportStudentsToPDF(students, 'roster')}
                 disabled={students.length === 0}
-                className="px-4 py-2.5 bg-white border-2 border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 hover:shadow-md disabled:opacity-50 flex items-center gap-2 font-bold transition-all"
+                className="px-4 py-2.5 bg-white border-2 border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 hover:shadow-md disabled:opacity-50 flex items-center gap-2 font-bold transition-all whitespace-nowrap"
               >
-                <Download className="w-4 h-4" />
-                Export PDF
+                <Download className="w-4 h-4 shrink-0" />
+                <span className="truncate">Export PDF</span>
               </button>
               <button
                 onClick={() => exportStudentsToCSV(students, `students_${new Date().toISOString().split('T')[0]}.csv`)}
                 disabled={students.length === 0}
-                className="px-4 py-2.5 bg-white border-2 border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 hover:shadow-md disabled:opacity-50 flex items-center gap-2 font-bold transition-all"
+                className="px-4 py-2.5 bg-white border-2 border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 hover:shadow-md disabled:opacity-50 flex items-center gap-2 font-bold transition-all whitespace-nowrap"
               >
-                <FileSpreadsheet className="w-4 h-4" />
-                Export CSV
+                <FileSpreadsheet className="w-4 h-4 shrink-0" />
+                <span className="truncate">Export CSV</span>
               </button>
               <button
                 onClick={() => setShowImportModal(true)}
-                className="px-4 py-2.5 bg-white border-2 border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 hover:shadow-md flex items-center gap-2 font-bold transition-all"
+                className="px-4 py-2.5 bg-white border-2 border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 hover:shadow-md flex items-center gap-2 font-bold transition-all whitespace-nowrap"
               >
-                <Upload className="w-4 h-4" />
-                Import CSV
+                <Upload className="w-4 h-4 shrink-0" />
+                <span className="truncate">Import CSV</span>
               </button>
               <button
                  onClick={() => setShowModal(true)}
-                 className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-lg hover:shadow-xl font-bold transition-all"
+                 className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-lg hover:shadow-xl font-bold transition-all whitespace-nowrap"
               >
-                + Add Student
+                <span>+ Add Student</span>
               </button>
             </div>
           </div>
       </header>
 
       {/* Add Student Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <form onSubmit={handleEnroll} className="card w-full max-w-2xl p-0 overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
-            <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-[#0f4c75] to-[#1a5f8b] text-white">
-              <h2 className="text-xl font-bold">Enroll New Student</h2>
-              <p className="text-blue-100 text-sm">Fall 2025 Professional Nursing Cycle</p>
-            </div>
-            <div className="p-8 grid grid-cols-2 gap-6">
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">First Name</label>
-                <input 
+      <Modal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        title="Enroll New Student"
+        size="lg"
+        footer={
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setShowModal(false)}
+              className="px-4 py-2 text-sm font-semibold text-gray-500 hover:text-gray-700"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="enroll-form"
+              className="btn btn-primary px-8 shadow-md whitespace-nowrap"
+            >
+              Complete Enrollment
+            </button>
+          </div>
+        }
+      >
+        <form id="enroll-form" onSubmit={handleEnroll} className="space-y-6">
+          <p className="text-gray-600 text-sm mb-4">Fall 2025 Professional Nursing Cycle</p>
+          <div className="grid grid-cols-2 gap-6">
+              <FormField label="First Name" required>
+                <Input 
                   required
                   type="text" 
                   value={newStudent.firstName}
                   onChange={(e) => setNewStudent({...newStudent, firstName: e.target.value})}
                   placeholder="e.g. Michael" 
-                  className="w-full p-2.5 border rounded-md text-sm focus:ring-2 focus:ring-[#0f4c75] outline-none" 
                 />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Last Name</label>
-                <input 
+              </FormField>
+              <FormField label="Last Name" required>
+                <Input 
                   required
                   type="text" 
                   value={newStudent.lastName}
                   onChange={(e) => setNewStudent({...newStudent, lastName: e.target.value})}
                   placeholder="e.g. Scott" 
-                  className="w-full p-2.5 border rounded-md text-sm focus:ring-2 focus:ring-[#0f4c75] outline-none" 
                 />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Email Address</label>
-                <input 
+              </FormField>
+              <FormField label="Email Address" required>
+                <Input 
                   required
                   type="email" 
                   value={newStudent.email}
                   onChange={(e) => setNewStudent({...newStudent, email: e.target.value})}
                   placeholder="m.scott@pctc.edu" 
-                  className="w-full p-2.5 border rounded-md text-sm focus:ring-2 focus:ring-[#0f4c75] outline-none" 
                 />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Date of Birth</label>
-                <input 
+              </FormField>
+              <FormField label="Date of Birth">
+                <Input 
                   type="date" 
                   value={newStudent.dob}
                   onChange={(e) => setNewStudent({...newStudent, dob: e.target.value})}
-                  className="w-full p-2.5 border rounded-md text-sm focus:ring-2 focus:ring-[#0f4c75] outline-none" 
                 />
-              </div>
+              </FormField>
               <div className="col-span-2 space-y-2 pt-4">
                 <div className="flex gap-4 p-4 bg-blue-50/50 rounded-lg border border-blue-100">
                   <div className="flex-1">
@@ -355,32 +398,35 @@ export default function StudentsPage() {
                   </div>
                 </div>
               </div>
-            </div>
-            <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end gap-3">
-              <button 
-                 type="button"
-                 onClick={() => setShowModal(false)}
-                 className="px-4 py-2 text-sm font-bold text-gray-500 hover:text-gray-700"
-              >
-                Cancel
-              </button>
-              <button type="submit" className="btn btn-primary px-8 shadow-md">
-                Complete Enrollment
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+          </div>
+        </form>
+      </Modal>
 
       {/* CSV Import Modal */}
-      {showImportModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="card w-full max-w-2xl p-0 overflow-hidden shadow-2xl animate-in fade-in zoom-in duration-200">
-            <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-[#0f4c75] to-[#1a5f8b] text-white">
-              <h2 className="text-xl font-bold">Import Students from CSV</h2>
-              <p className="text-blue-100 text-sm">Bulk enrollment for Fall 2025</p>
-            </div>
-            <div className="p-8">
+      <Modal
+        isOpen={showImportModal}
+        onClose={() => {
+          setShowImportModal(false);
+          setImportErrors([]);
+        }}
+        title="Import Students from CSV"
+        size="lg"
+        footer={
+          <div className="flex justify-end">
+            <button
+              onClick={() => {
+                setShowImportModal(false);
+                setImportErrors([]);
+              }}
+              className="btn btn-outline whitespace-nowrap"
+            >
+              Close
+            </button>
+          </div>
+        }
+      >
+        <div>
+          <p className="text-gray-600 text-sm mb-4">Bulk enrollment for Fall 2025</p>
               <div className="mb-6">
                 <p className="text-sm text-gray-600 mb-4">
                   Upload a CSV file with student information. Download the template to see the required format.
@@ -394,24 +440,42 @@ export default function StudentsPage() {
                 </button>
               </div>
 
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center mb-4">
-                <Upload className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <label className="cursor-pointer">
-                  <span className="text-indigo-600 hover:text-indigo-700 font-medium">
-                    Choose a CSV file
-                  </span>
-                  <input
-                    type="file"
-                    accept=".csv"
-                    onChange={handleCSVImport}
-                    disabled={importing}
-                    className="hidden"
-                  />
-                </label>
-                <p className="text-xs text-gray-500 mt-2">
-                  CSV files only. Maximum 1000 students.
-                </p>
-              </div>
+              <FileUpload
+                accept=".csv"
+                multiple={false}
+                maxSize={10}
+                onUpload={async (files) => {
+                  if (files.length > 0) {
+                    const file = files[0];
+                    setImporting(true);
+                    setImportErrors([]);
+                    try {
+                      const parsed = await parseStudentCSV(file);
+                      const { valid, errors } = validateStudents(parsed);
+                      setImportErrors(errors);
+                      if (valid.length > 0) {
+                        for (const student of valid) {
+                          await addStudent(student);
+                        }
+                        toast.success(
+                          `Successfully imported ${valid.length} student(s)`,
+                          errors.length > 0 ? `${errors.length} errors found` : undefined
+                        );
+                      }
+                      if (errors.length === 0) {
+                        setShowImportModal(false);
+                      }
+                    } catch (error) {
+                      console.error('CSV import failed:', error);
+                      toast.error('Failed to import CSV', 'Please check the file format');
+                    } finally {
+                      setImporting(false);
+                    }
+                  }
+                }}
+                value={[]}
+                disabled={importing}
+              />
 
               {importing && (
                 <div className="bg-indigo-50 border border-indigo-200 rounded-lg p-4 mb-4">
@@ -432,59 +496,52 @@ export default function StudentsPage() {
                   </ul>
                 </div>
               )}
-            </div>
-            <div className="p-6 bg-gray-50 border-t border-gray-100 flex justify-end">
-              <button
-                onClick={() => {
-                  setShowImportModal(false);
-                  setImportErrors([]);
-                }}
-                className="btn btn-outline"
-              >
-                Close
-              </button>
-            </div>
-          </div>
         </div>
-      )}
+      </Modal>
 
       {/* Roster View */}
       {viewMode === 'roster' && (
         <>
           {/* Bulk Actions Bar */}
           {selectedStudents.size > 0 && (
-            <div className="bg-white rounded-2xl p-6 shadow-md border-2 border-indigo-200 mb-6 animate-in slide-in-from-top duration-200">
+            <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-4 mb-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <span className="font-black text-indigo-900 text-lg">
+                  <span className="font-bold text-slate-900">
                     {selectedStudents.size} student{selectedStudents.size !== 1 ? 's' : ''} selected
                   </span>
                   <button
                     onClick={() => setSelectedStudents(new Set())}
-                    className="text-sm text-indigo-600 hover:text-indigo-800 flex items-center gap-1 font-bold"
+                    className="text-sm text-slate-600 hover:text-slate-900 font-medium transition-colors"
                   >
-                    <X className="w-4 h-4" />
-                    Clear
+                    Clear Selection
                   </button>
                 </div>
                 <div className="flex gap-3">
                   <button
                     onClick={() => handleBulkStatusUpdate('Active')}
-                    className="px-5 py-2.5 bg-green-600 text-white rounded-xl hover:bg-green-700 hover:shadow-md text-sm font-bold transition-all"
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-semibold transition-all shadow-md hover:shadow-lg"
                   >
                     Mark Active
                   </button>
                   <button
                     onClick={() => handleBulkStatusUpdate('At Risk')}
-                    className="px-5 py-2.5 bg-orange-600 text-white rounded-xl hover:bg-orange-700 hover:shadow-md text-sm font-bold transition-all"
+                    className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm font-semibold transition-all shadow-md hover:shadow-lg"
                   >
                     Mark At Risk
                   </button>
                   <button
                     onClick={() => handleBulkStatusUpdate('Graduated')}
-                    className="px-5 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 hover:shadow-md text-sm font-bold transition-all"
+                    className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 text-sm font-semibold transition-all shadow-md hover:shadow-lg"
                   >
                     Mark Graduated
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    className="px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 text-sm font-semibold transition-all shadow-md hover:shadow-lg flex items-center gap-2"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Selected
                   </button>
                 </div>
               </div>
@@ -521,9 +578,10 @@ export default function StudentsPage() {
             </div>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden transition-all">
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white border-b border-gray-200">
+          <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-visible transition-all">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+              <thead className="bg-linear-to-r from-indigo-600 to-blue-600 text-white border-b border-gray-200">
                 <tr>
                   <th className="px-4 py-4 w-12">
                     <input
@@ -569,65 +627,44 @@ export default function StudentsPage() {
                       <SortIcon field="predictor" />
                     </div>
                   </th>
-                  <th className="px-6 py-4 text-xs font-black text-white uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {students.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-16">
-                      <div className="text-center">
-                        <div className="flex justify-center mb-4">
-                          <div className="p-4 bg-gray-100 rounded-full">
-                            <Users className="w-12 h-12 text-gray-400" />
-                          </div>
-                        </div>
-                        <h3 className="text-lg font-bold text-gray-900 mb-2">No Students Enrolled Yet</h3>
-                        <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                          Get started by adding your first student manually or import your entire cohort from a CSV file.
-                        </p>
-                        <div className="flex gap-3 justify-center">
-                          <button
-                            onClick={() => setShowImportModal(true)}
-                            className="btn btn-outline flex items-center gap-2"
-                          >
-                            <Upload className="w-4 h-4" />
-                            Import CSV
-                          </button>
-                          <button
-                            onClick={() => setShowModal(true)}
-                            className="btn btn-primary flex items-center gap-2"
-                          >
-                            <Users className="w-4 h-4" />
-                            Add First Student
-                          </button>
-                        </div>
-                      </div>
+                    <td colSpan={5} className="px-6 py-16">
+                      <EmptyState
+                        icon={<Users className="w-12 h-12 text-gray-400" />}
+                        title="No Students Enrolled Yet"
+                        description="Get started by adding your first student manually or import your entire cohort from a CSV file."
+                        action={{
+                          label: 'Add First Student',
+                          onClick: () => setShowModal(true),
+                          variant: 'primary',
+                        }}
+                        secondaryAction={{
+                          label: 'Import CSV',
+                          onClick: () => setShowImportModal(true),
+                        }}
+                      />
                     </td>
                   </tr>
                 ) : filteredStudents.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-16">
-                      <div className="text-center">
-                        <div className="flex justify-center mb-4">
-                          <div className="p-4 bg-gray-100 rounded-full">
-                            <Search className="w-12 h-12 text-gray-400" />
-                          </div>
-                        </div>
-                        <h3 className="text-lg font-bold text-gray-900 mb-2">No Students Found</h3>
-                        <p className="text-gray-600 mb-6">
-                          No students match your current search or filter criteria.
-                        </p>
-                        <button
-                          onClick={() => {
+                    <td colSpan={5} className="px-6 py-16">
+                      <EmptyState
+                        icon={<Search className="w-12 h-12 text-gray-400" />}
+                        title="No Students Found"
+                        description="No students match your current search or filter criteria."
+                        action={{
+                          label: 'Clear Filters',
+                          onClick: () => {
                             setSearchTerm('');
                             setStatusFilter('all');
-                          }}
-                          className="btn btn-outline"
-                        >
-                          Clear Filters
-                        </button>
-                      </div>
+                          },
+                          variant: 'outline',
+                        }}
+                      />
                     </td>
                   </tr>
                 ) : filteredStudents.map((student) => (
@@ -670,14 +707,36 @@ export default function StudentsPage() {
                          {student.nclexPredictorScore || '-'}%
                        </span>
                     </td>
-                    <td className="px-6 py-4 text-gray-400 cursor-pointer hover:text-[#0f4c75]">
-                      <MoreVertical className="w-5 h-5" />
-                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
+
+          {/* Delete Confirmation Dialog */}
+          <ConfirmDialog
+            isOpen={showDeleteModal}
+            title={`Delete ${selectedStudents.size} Student${selectedStudents.size > 1 ? 's' : ''}`}
+            message={
+              selectedStudents.size > 0 ? (
+                <>
+                  Are you sure you want to delete <strong>{selectedStudents.size} selected student{selectedStudents.size > 1 ? 's' : ''}</strong>?
+                  <br /><br />
+                  This will permanently delete all associated data including grades, clinical logs, and certifications for {selectedStudents.size > 1 ? 'these students' : 'this student'}. This action cannot be undone.
+                </>
+              ) : (
+                'Are you sure you want to delete this student?'
+              )
+            }
+            confirmText={deleting ? 'Deleting...' : `Delete ${selectedStudents.size} Student${selectedStudents.size > 1 ? 's' : ''}`}
+            cancelText="Cancel"
+            variant="danger"
+            onConfirm={confirmDelete}
+            onCancel={() => {
+              setShowDeleteModal(false);
+            }}
+          />
         </>
       )}
 
@@ -728,12 +787,12 @@ export default function StudentsPage() {
 
             {/* Detailed Table */}
             <div className="bg-white rounded-2xl shadow-md border border-gray-100 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-indigo-50 to-blue-50 flex justify-between items-center">
+              <div className="px-6 py-4 border-b border-gray-100 bg-linear-to-r from-indigo-50 to-blue-50 flex justify-between items-center">
                 <h3 className="text-xl font-black text-gray-900 flex items-center gap-2">
                   <BrainCircuit className="w-6 h-6 text-indigo-600" />
                   NCLEX Remediation Pipeline
                 </h3>
-                <button className="text-xs text-indigo-600 hover:text-indigo-800 font-black uppercase tracking-wider">Export Analytics</button>
+                <button className="px-3 py-1.5 text-xs text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-lg font-semibold uppercase tracking-wider transition-all">Export Analytics</button>
               </div>
               <table className="w-full text-left">
                 <thead className="text-gray-600 text-xs uppercase font-black tracking-widest bg-gray-50 border-b-2 border-gray-200">
@@ -781,17 +840,17 @@ export default function StudentsPage() {
                         </td>
                          <td className="px-6 py-4 text-sm">
                            {remStatus === 'None' && isRisk ? (
-                             <button className="text-indigo-600 hover:text-indigo-700 font-bold text-[11px] uppercase underline underline-offset-4 decoration-2">Assign Plan</button>
+                             <button className="px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg font-semibold text-xs transition-all whitespace-nowrap">Assign Plan</button>
                            ) : remStatus === 'Assigned' ? (
-                             <button className="text-orange-600 hover:text-orange-700 font-bold text-[11px] uppercase">Begin Session</button>
+                             <button className="px-3 py-1.5 bg-orange-50 text-orange-700 hover:bg-orange-100 rounded-lg font-semibold text-xs transition-all whitespace-nowrap">Begin Session</button>
                            ) : remStatus === 'In Progress' ? (
-                              <button className="text-indigo-600 hover:text-indigo-700 font-bold text-[11px] uppercase">Review Work</button>
+                              <button className="px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg font-semibold text-xs transition-all whitespace-nowrap">Review Work</button>
                            ) : remStatus === 'Validated' ? (
-                              <span className="text-green-600 font-bold text-[11px] uppercase flex items-center gap-1">
+                              <span className="px-3 py-1.5 bg-green-50 text-green-700 rounded-lg font-semibold text-xs flex items-center gap-1.5 whitespace-nowrap">
                                 <CheckCircle className="w-3.5 h-3.5" /> Validated
                               </span>
                            ) : (
-                              <span className="text-gray-300 font-bold text-[11px] uppercase">Monitor</span>
+                              <span className="px-3 py-1.5 bg-gray-50 text-gray-400 rounded-lg font-semibold text-xs whitespace-nowrap">Monitor</span>
                            )}
                          </td>
                       </tr>
